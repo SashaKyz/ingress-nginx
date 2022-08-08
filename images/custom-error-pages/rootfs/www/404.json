@@ -1,1 +1,12 @@
-{ "message": "The page you're looking for could not be found" }
+{
+  "application" : "CWDS ERROR JSON",
+  "health_status" : false,
+  "error_code": ${X-Code},
+  "message": "The page you're looking for could not be found",
+  "health_checks" : {
+    "dependency" : {
+      "healthy" : true,
+      "timestamp" : "2022-08-08T13:16:30.708-07:00"
+    }
+  }
+}

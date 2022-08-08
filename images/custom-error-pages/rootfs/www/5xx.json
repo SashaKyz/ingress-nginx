@@ -1,1 +1,12 @@
-5xx json
+{
+  "application" : "CWDS ERROR JSON",
+  "health_status" : false,
+  "error_code": %[X-Code],
+  "messages": "Some 5XX error happens. Try again",
+  "health_checks" : {
+    "dependency" : {
+      "healthy" : true,
+      "timestamp" : "2022-08-08T13:16:30.708-07:00"
+    }
+  }
+}
