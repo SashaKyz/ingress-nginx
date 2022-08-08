@@ -3,11 +3,18 @@
 {{- if .Values.defaultBackend.enabled }}
 - --default-backend-service=$(POD_NAMESPACE)/{{ include "ingress-nginx.defaultBackend.fullname" . }}
 {{- end }}
-{{- if .Values.controller.publishService.enabled }}
+{{- if and .Values.controller.publishService.enabled .Values.controller.service.enabled }}
+{{- if .Values.controller.service.external.enabled }}
 - --publish-service={{ template "ingress-nginx.controller.publishServicePath" . }}
+{{- else if .Values.controller.service.internal.enabled }}
+- --publish-service={{ template "ingress-nginx.controller.publishServicePath" . }}-internal
+{{- end }}
 {{- end }}
 - --election-id={{ .Values.controller.electionID }}
 - --controller-class={{ .Values.controller.ingressClassResource.controllerValue }}
+{{- if .Values.controller.ingressClass }}
+- --ingress-class={{ .Values.controller.ingressClass }}
+{{- end }}
 - --configmap={{ default "$(POD_NAMESPACE)" .Values.controller.configMapNamespace }}/{{ include "ingress-nginx.controller.fullname" . }}
 {{- if .Values.tcp }}
 - --tcp-services-configmap={{ default "$(POD_NAMESPACE)" .Values.controller.tcp.configMapNamespace }}/{{ include "ingress-nginx.fullname" . }}-tcp

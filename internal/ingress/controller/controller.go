@@ -32,7 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/ingress-nginx/internal/ingress"
 	"k8s.io/ingress-nginx/internal/ingress/annotations"
 	"k8s.io/ingress-nginx/internal/ingress/annotations/log"
 	"k8s.io/ingress-nginx/internal/ingress/annotations/parser"
@@ -41,8 +40,11 @@ import (
 	"k8s.io/ingress-nginx/internal/ingress/controller/ingressclass"
 	"k8s.io/ingress-nginx/internal/ingress/controller/store"
 	"k8s.io/ingress-nginx/internal/ingress/errors"
+	"k8s.io/ingress-nginx/internal/ingress/inspector"
+	"k8s.io/ingress-nginx/internal/ingress/metric/collectors"
 	"k8s.io/ingress-nginx/internal/k8s"
 	"k8s.io/ingress-nginx/internal/nginx"
+	"k8s.io/ingress-nginx/pkg/apis/ingress"
 	"k8s.io/klog/v2"
 )
 
@@ -95,8 +97,10 @@ type Configuration struct {
 
 	EnableProfiling bool
 
-	EnableMetrics  bool
-	MetricsPerHost bool
+	EnableMetrics       bool
+	MetricsPerHost      bool
+	MetricsBuckets      *collectors.HistogramBuckets
+	ReportStatusClasses bool
 
 	FakeCertificate *ingress.SSLCert
 
@@ -116,7 +120,14 @@ type Configuration struct {
 
 	MonitorMaxBatchSize int
 
-	ShutdownGracePeriod int
+	PostShutdownGracePeriod int
+	ShutdownGracePeriod     int
+
+	InternalLoggerAddress string
+	IsChroot              bool
+	DeepInspector         bool
+
+	DynamicConfigurationRetries int
 }
 
 // GetPublishService returns the Service used to set the load-balancer status of Ingresses.
@@ -143,6 +154,7 @@ func (n *NGINXController) syncIngress(interface{}) error {
 	hosts, servers, pcfg := n.getConfiguration(ings)
 
 	n.metricCollector.SetSSLExpireTime(servers)
+	n.metricCollector.SetSSLInfo(servers)
 
 	if n.runningConfig.Equal(pcfg) {
 		klog.V(3).Infof("No configuration change detected, skipping backend reload")
@@ -185,19 +197,24 @@ func (n *NGINXController) syncIngress(interface{}) error {
 	}
 
 	retry := wait.Backoff{
-		Steps:    15,
-		Duration: 1 * time.Second,
-		Factor:   0.8,
+		Steps:    1 + n.cfg.DynamicConfigurationRetries,
+		Duration: time.Second,
+		Factor:   1.3,
 		Jitter:   0.1,
 	}
 
+	retriesRemaining := retry.Steps
 	err := wait.ExponentialBackoff(retry, func() (bool, error) {
 		err := n.configureDynamically(pcfg)
 		if err == nil {
 			klog.V(2).Infof("Dynamic reconfiguration succeeded.")
 			return true, nil
 		}
-
+		retriesRemaining--
+		if retriesRemaining > 0 {
+			klog.Warningf("Dynamic reconfiguration failed (retrying; %d retries left): %v", retriesRemaining, err)
+			return false, nil
+		}
 		klog.Warningf("Dynamic reconfiguration failed: %v", err)
 		return false, err
 	})
@@ -208,7 +225,8 @@ func (n *NGINXController) syncIngress(interface{}) error {
 
 	ri := getRemovedIngresses(n.runningConfig, pcfg)
 	re := getRemovedHosts(n.runningConfig, pcfg)
-	n.metricCollector.RemoveMetrics(ri, re)
+	rc := getRemovedCertificateSerialNumbers(n.runningConfig, pcfg)
+	n.metricCollector.RemoveMetrics(ri, re, rc)
 
 	n.runningConfig = pcfg
 
@@ -229,6 +247,16 @@ func (n *NGINXController) CheckIngress(ing *networking.Ingress) error {
 	if !ing.DeletionTimestamp.IsZero() {
 		return nil
 	}
+	if n.cfg.DeepInspector {
+		if err := inspector.DeepInspect(ing); err != nil {
+			return fmt.Errorf("invalid object: %w", err)
+		}
+	}
+	// Do not attempt to validate an ingress that's not meant to be controlled by the current instance of the controller.
+	if ingressClass, err := n.store.GetIngressClass(ing, n.cfg.IngressClassConfiguration); ingressClass == "" {
+		klog.Warningf("ignoring ingress %v in %v based on annotation %v: %v", ing.Name, ing.ObjectMeta.Namespace, ingressClass, err)
+		return nil
+	}
 
 	if n.cfg.Namespace != "" && ing.ObjectMeta.Namespace != n.cfg.Namespace {
 		klog.Warningf("ignoring ingress %v in namespace %v different from the namespace watched %s", ing.Name, ing.ObjectMeta.Namespace, n.cfg.Namespace)
@@ -242,7 +270,11 @@ func (n *NGINXController) CheckIngress(ing *networking.Ingress) error {
 	cfg := n.store.GetBackendConfiguration()
 	cfg.Resolver = n.resolver
 
-	arraybadWords := strings.Split(strings.TrimSpace(cfg.AnnotationValueWordBlocklist), ",")
+	var arrayBadWords []string
+
+	if cfg.AnnotationValueWordBlocklist != "" {
+		arrayBadWords = strings.Split(strings.TrimSpace(cfg.AnnotationValueWordBlocklist), ",")
+	}
 
 	for key, value := range ing.ObjectMeta.GetAnnotations() {
 
@@ -251,9 +283,10 @@ func (n *NGINXController) CheckIngress(ing *networking.Ingress) error {
 				return fmt.Errorf("This deployment has a custom annotation prefix defined. Use '%s' instead of '%s'", parser.AnnotationsPrefix, parser.DefaultAnnotationsPrefix)
 			}
 		}
-		if strings.HasPrefix(key, fmt.Sprintf("%s/", parser.AnnotationsPrefix)) {
-			for _, forbiddenvalue := range arraybadWords {
-				if strings.Contains(value, forbiddenvalue) {
+
+		if strings.HasPrefix(key, fmt.Sprintf("%s/", parser.AnnotationsPrefix)) && len(arrayBadWords) != 0 {
+			for _, forbiddenvalue := range arrayBadWords {
+				if strings.Contains(value, strings.TrimSpace(forbiddenvalue)) {
 					return fmt.Errorf("%s annotation contains invalid word %s", key, forbiddenvalue)
 				}
 			}
@@ -533,6 +566,7 @@ func (n *NGINXController) getConfiguration(ingresses []*ingress.Ingress) (sets.S
 		PassthroughBackends:   passUpstreams,
 		BackendConfigChecksum: n.store.GetBackendConfiguration().Checksum,
 		DefaultSSLCertificate: n.getDefaultSSLCertificate(),
+		StreamSnippets:        n.getStreamSnippets(ingresses),
 	}
 }
 
@@ -555,6 +589,11 @@ func dropSnippetDirectives(anns *annotations.Ingress, ingKey string) {
 		if anns.ExternalAuth.AuthSnippet != "" {
 			klog.V(3).Infof("Ingress %q tried to use auth-snippet and the annotation is disabled by the admin. Removing the annotation", ingKey)
 			anns.ExternalAuth.AuthSnippet = ""
+		}
+
+		if anns.StreamSnippet != "" {
+			klog.V(3).Infof("Ingress %q tried to use stream-snippet and the annotation is disabled by the admin. Removing the annotation", ingKey)
+			anns.StreamSnippet = ""
 		}
 
 	}
@@ -891,6 +930,7 @@ func (n *NGINXController) createUpstreams(data []*ingress.Ingress, du *ingress.B
 				upstreams[defBackend].NoServer = true
 				upstreams[defBackend].TrafficShapingPolicy = ingress.TrafficShapingPolicy{
 					Weight:        anns.Canary.Weight,
+					WeightTotal:   anns.Canary.WeightTotal,
 					Header:        anns.Canary.Header,
 					HeaderValue:   anns.Canary.HeaderValue,
 					HeaderPattern: anns.Canary.HeaderPattern,
@@ -1320,7 +1360,10 @@ func (n *NGINXController) createServers(data []*ingress.Ingress,
 
 			servers[host].SSLCert = cert
 
-			if cert.ExpireTime.Before(time.Now().Add(240 * time.Hour)) {
+			now := time.Now()
+			if cert.ExpireTime.Before(now) {
+				klog.Warningf("SSL certificate for server %q expired (%v)", host, cert.ExpireTime)
+			} else if cert.ExpireTime.Before(now.Add(240 * time.Hour)) {
 				klog.Warningf("SSL certificate for server %q is about to expire (%v)", host, cert.ExpireTime)
 			}
 		}
@@ -1601,6 +1644,37 @@ func getRemovedHosts(rucfg, newcfg *ingress.Configuration) []string {
 	return old.Difference(new).List()
 }
 
+func getRemovedCertificateSerialNumbers(rucfg, newcfg *ingress.Configuration) []string {
+	oldCertificates := sets.NewString()
+	newCertificates := sets.NewString()
+
+	for _, server := range rucfg.Servers {
+		if server.SSLCert == nil {
+			continue
+		}
+		identifier := server.SSLCert.Identifier()
+		if identifier != "" {
+			if !oldCertificates.Has(identifier) {
+				oldCertificates.Insert(identifier)
+			}
+		}
+	}
+
+	for _, server := range newcfg.Servers {
+		if server.SSLCert == nil {
+			continue
+		}
+		identifier := server.SSLCert.Identifier()
+		if identifier != "" {
+			if !newCertificates.Has(identifier) {
+				newCertificates.Insert(identifier)
+			}
+		}
+	}
+
+	return oldCertificates.Difference(newCertificates).List()
+}
+
 func getRemovedIngresses(rucfg, newcfg *ingress.Configuration) []string {
 	oldIngresses := sets.NewString()
 	newIngresses := sets.NewString()
@@ -1717,15 +1791,10 @@ func checkOverlap(ing *networking.Ingress, ingresses []*ingress.Ingress, servers
 			}
 
 			// same ingress
-			skipValidation := false
 			for _, existing := range existingIngresses {
 				if existing.ObjectMeta.Namespace == ing.ObjectMeta.Namespace && existing.ObjectMeta.Name == ing.ObjectMeta.Name {
 					return nil
 				}
-			}
-
-			if skipValidation {
-				continue
 			}
 
 			// path overlap. Check if one of the ingresses has a canary annotation
@@ -1772,4 +1841,15 @@ func ingressForHostPath(hostname, path string, servers []*ingress.Server) []*net
 	}
 
 	return ingresses
+}
+
+func (n *NGINXController) getStreamSnippets(ingresses []*ingress.Ingress) []string {
+	snippets := make([]string, 0, len(ingresses))
+	for _, i := range ingresses {
+		if i.ParsedAnnotations.StreamSnippet == "" {
+			continue
+		}
+		snippets = append(snippets, i.ParsedAnnotations.StreamSnippet)
+	}
+	return snippets
 }

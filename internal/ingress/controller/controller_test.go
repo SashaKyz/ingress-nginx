@@ -39,8 +39,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"k8s.io/ingress-nginx/internal/file"
-	"k8s.io/ingress-nginx/internal/ingress"
+	"k8s.io/ingress-nginx/pkg/apis/ingress"
+
 	"k8s.io/ingress-nginx/internal/ingress/annotations"
 	"k8s.io/ingress-nginx/internal/ingress/annotations/canary"
 	"k8s.io/ingress-nginx/internal/ingress/annotations/ipwhitelist"
@@ -56,11 +56,17 @@ import (
 	"k8s.io/ingress-nginx/internal/ingress/resolver"
 	"k8s.io/ingress-nginx/internal/k8s"
 	"k8s.io/ingress-nginx/internal/net/ssl"
+
+	"k8s.io/ingress-nginx/pkg/util/file"
 )
 
 type fakeIngressStore struct {
 	ingresses     []*ingress.Ingress
 	configuration ngx_config.Configuration
+}
+
+func (fakeIngressStore) GetIngressClass(ing *networking.Ingress, icConfig *ingressclass.IngressClassConfiguration) (string, error) {
+	return "nginx", nil
 }
 
 func (fis fakeIngressStore) GetBackendConfiguration() ngx_config.Configuration {
@@ -281,6 +287,10 @@ func TestCheckIngress(t *testing.T) {
 				err: nil,
 			}
 			ing.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/custom-headers"] = "invalid_directive"
+			if err := nginx.CheckIngress(ing); err == nil {
+				t.Errorf("with an invalid value in annotation the ingress should be rejected")
+			}
+			ing.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/custom-headers"] = "another_directive"
 			if err := nginx.CheckIngress(ing); err == nil {
 				t.Errorf("with an invalid value in annotation the ingress should be rejected")
 			}
@@ -2388,6 +2398,7 @@ func newNGINXController(t *testing.T) *NGINXController {
 		clientSet,
 		channels.NewRingChannel(10),
 		false,
+		true,
 		&ingressclass.IngressClassConfiguration{
 			Controller:      "k8s.io/ingress-nginx",
 			AnnotationValue: "nginx",
@@ -2452,6 +2463,7 @@ func newDynamicNginxController(t *testing.T, setConfigMap func(string) *v1.Confi
 		clientSet,
 		channels.NewRingChannel(10),
 		false,
+		true,
 		&ingressclass.IngressClassConfiguration{
 			Controller:      "k8s.io/ingress-nginx",
 			AnnotationValue: "nginx",

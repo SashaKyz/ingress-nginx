@@ -30,7 +30,7 @@ import (
 const (
 	// Default values
 	defaultCorsMethods = "GET, PUT, POST, DELETE, PATCH, OPTIONS"
-	defaultCorsHeaders = "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
+	defaultCorsHeaders = "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
 	defaultCorsMaxAge  = 1728000
 )
 
@@ -121,19 +121,22 @@ func (c cors) Parse(ing *networking.Ingress) (interface{}, error) {
 		config.CorsEnabled = false
 	}
 
+	config.CorsAllowOrigin = []string{}
 	unparsedOrigins, err := parser.GetStringAnnotation("cors-allow-origin", ing)
 	if err == nil {
-		config.CorsAllowOrigin = strings.Split(unparsedOrigins, ",")
-		for i, origin := range config.CorsAllowOrigin {
+		origins := strings.Split(unparsedOrigins, ",")
+		for _, origin := range origins {
 			origin = strings.TrimSpace(origin)
 			if origin == "*" {
 				config.CorsAllowOrigin = []string{"*"}
 				break
 			}
+
 			if !corsOriginRegex.MatchString(origin) {
 				klog.Errorf("Error parsing cors-allow-origin parameters. Supplied incorrect origin: %s. Skipping.", origin)
-				config.CorsAllowOrigin = append(config.CorsAllowOrigin[:i], config.CorsAllowOrigin[i+1:]...)
+				continue
 			}
+			config.CorsAllowOrigin = append(config.CorsAllowOrigin, origin)
 			klog.Infof("Current config.corsAllowOrigin %v", config.CorsAllowOrigin)
 		}
 	} else {

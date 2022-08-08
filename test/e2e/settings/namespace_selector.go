@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/ingress-nginx/test/e2e/framework"
@@ -37,7 +37,7 @@ var _ = framework.IngressNginxDescribe("[Flag] watch namespace selector", func()
 	prepareTestIngress := func(baseName string, host string, labels map[string]string) string {
 		ns, err := framework.CreateKubeNamespaceWithLabel(f.BaseName, labels, f.KubeClientSet)
 		assert.Nil(ginkgo.GinkgoT(), err, "creating test namespace")
-		f.NewEchoDeploymentWithNamespaceAndReplicas(ns, 1)
+		f.NewEchoDeployment(framework.WithDeploymentNamespace(ns))
 		ing := framework.NewSingleIngressWithIngressClass(host, "/", host, ns, framework.EchoService, f.IngressClass, 80, nil)
 		f.EnsureIngress(ing)
 		return ns
@@ -98,7 +98,7 @@ var _ = framework.IngressNginxDescribe("[Flag] watch namespace selector", func()
 			_, err = f.KubeClientSet.CoreV1().Namespaces().Update(context.TODO(), ns, metav1.UpdateOptions{})
 			assert.Nil(ginkgo.GinkgoT(), err, "labeling not matched namespace")
 
-			// update ingress to trigger reconcilation
+			// update ingress to trigger reconciliation
 			ing, err := f.KubeClientSet.NetworkingV1().Ingresses(notMatchedNs).Get(context.TODO(), notMatchedHost, metav1.GetOptions{})
 			assert.Nil(ginkgo.GinkgoT(), err, "retrieve test ingress")
 			if ing.Labels == nil {

@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,7 +38,7 @@ var _ = framework.IngressNginxDescribe("[TCP] tcp-services", func() {
 	f := framework.NewDefaultFramework("tcp")
 
 	ginkgo.It("should expose a TCP service", func() {
-		f.NewEchoDeploymentWithReplicas(1)
+		f.NewEchoDeployment()
 
 		config, err := f.KubeClientSet.
 			CoreV1().

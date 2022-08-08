@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -82,10 +82,10 @@ var _ = framework.IngressNginxDescribe("[Security] Pod Security Policies with vo
 
 			deployment.Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
 				{
-					Name: "ssl", MountPath: "/etc/ingress-controller",
+					Name: "ssl", MountPath: "/etc/my-amazing-ssl",
 				},
 				{
-					Name: "tmp", MountPath: "/tmp",
+					Name: "tmp", MountPath: "/my-other-tmp",
 				},
 			}
 

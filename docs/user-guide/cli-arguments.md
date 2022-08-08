@@ -2,7 +2,7 @@
 
 The following command line arguments are accepted by the Ingress controller executable.
 
-They are set in the container spec of the `nginx-ingress-controller` Deployment manifest
+They are set in the container spec of the `ingress-nginx-controller` Deployment manifest
 
 | Argument | Description |
 |----------|-------------|
@@ -12,6 +12,7 @@ They are set in the container spec of the `nginx-ingress-controller` Deployment 
 | `--apiserver-host`                 | Address of the Kubernetes API server. Takes the form "protocol://address:port". If not specified, it is assumed the program runs inside a Kubernetes cluster and local discovery is attempted. |
 | `--certificate-authority`          | Path to a cert file for the certificate authority. This certificate is used only when the flag --apiserver-host is specified. |
 | `--configmap`                      | Name of the ConfigMap containing custom global configurations for the controller. |
+| `--deep-inspect`                   | Enables ingress object security deep inspector. (default true) |
 | `--default-backend-service`        | Service used to serve HTTP requests not matching any known server name (catch-all). Takes the form "namespace/name". The controller configures NGINX to forward requests to the first port of this Service. |
 | `--default-server-port`            | Port to use for exposing the default server (catch-all). (default 8181) |
 | `--default-ssl-certificate`        | Secret containing a SSL certificate to be used by the default HTTPS server (catch-all). Takes the form "namespace/name". |
@@ -28,6 +29,7 @@ They are set in the container spec of the `nginx-ingress-controller` Deployment 
 | `--http-port`                      | Port to use for servicing HTTP traffic. (default 80) |
 | `--https-port`                     | Port to use for servicing HTTPS traffic. (default 443) |
 | `--ingress-class`                  | Name of the ingress class this controller satisfies. The class of an Ingress object is set using the field IngressClassName in Kubernetes clusters version v1.18.0 or higher or the annotation "kubernetes.io/ingress.class" (deprecated). If this parameter is not set, or set to the default value of "nginx", it will handle ingresses with either an empty or "nginx" class name. |
+| `--ingress-class-by-name`          | Define if Ingress Controller should watch for Ingress Class by Name together with Controller Class. (default false) |
 | `--kubeconfig`                     | Path to a kubeconfig file containing authorization and API server information. |
 | `--log_backtrace_at`               | when logging hits line file:N, emit a stack trace (default :0) |
 | `--log_dir`                        | If non-empty, write log files in this directory |
@@ -39,11 +41,13 @@ They are set in the container spec of the `nginx-ingress-controller` Deployment 
 | `--maxmind-retries-count`          | Number of attempts to download the GeoIP DB. (default 1) |
 | `--maxmind-license-key`            | Maxmind license key to download GeoLite2 Databases. https://blog.maxmind.com/2019/12/18/significant-changes-to-accessing-and-using-geolite2-databases |
 | `--metrics-per-host`               | Export metrics per-host (default true) |
+| `--post-shutdown-grace-period`     | Additional delay in seconds before controller container exits. (default 10) |
 | `--profiler-port`                  | Port to use for expose the ingress controller Go profiler when it is enabled. (default 10245) |
 | `--profiling`                      | Enable profiling via web interface host:port/debug/pprof/ (default true) |
 | `--publish-service`                | Service fronting the Ingress controller. Takes the form "namespace/name". When used together with update-status, the controller mirrors the address of this service's endpoints to the load-balancer status of all Ingress objects it satisfies. |
 | `--publish-status-address`         | Customized address (or addresses, separated by comma) to set as the load-balancer status of Ingress objects this controller satisfies. Requires the update-status parameter. |
 | `--report-node-internal-ip-address`| Set the load-balancer status of Ingress objects to internal Node addresses instead of external. Requires the update-status parameter. |
+| `--report-status-classes`          | If true, report status classes in metrics (2xx, 3xx, 4xx and 5xx) instead of full status codes. (default false) |
 | `--skip_headers`                   | If true, avoid header prefixes in the log messages |
 | `--skip_log_headers`               | If true, avoid headers when opening log files |
 | `--ssl-passthrough-proxy-port`     | Port to use internally for SSL Passthrough. (default 442) |

@@ -22,7 +22,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -42,7 +42,7 @@ const (
 	Poll = 2 * time.Second
 
 	// DefaultTimeout time to wait for operations to complete
-	DefaultTimeout = 30 * time.Second
+	DefaultTimeout = 90 * time.Second
 )
 
 func nowStamp() string {

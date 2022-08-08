@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -69,7 +69,7 @@ var _ = framework.IngressNginxDescribe("[Status] status update", func() {
 		})
 		assert.Nil(ginkgo.GinkgoT(), err, "unexpected error updating ingress controller deployment flags")
 
-		f.NewEchoDeploymentWithReplicas(1)
+		f.NewEchoDeployment()
 
 		ing := f.EnsureIngress(framework.NewSingleIngress(host, "/", host, f.Namespace, framework.EchoService, 80, nil))
 

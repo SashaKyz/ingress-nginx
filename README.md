@@ -1,5 +1,6 @@
-# NGINX Ingress Controller
+# Ingress NGINX Controller
 
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/5691/badge)](https://bestpractices.coreinfrastructure.org/projects/5691)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kubernetes/ingress-nginx)](https://goreportcard.com/report/github.com/kubernetes/ingress-nginx)
 [![GitHub license](https://img.shields.io/github/license/kubernetes/ingress-nginx.svg)](https://github.com/kubernetes/ingress-nginx/blob/main/LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/kubernetes/ingress-nginx.svg)](https://github.com/kubernetes/ingress-nginx/stargazers)
@@ -28,20 +29,26 @@ For detailed changes on the `ingress-nginx` helm chart, please check the followi
 
 ### Support Versions table 
 
-| Ingress-nginx version | k8s supported version  | Alpine Version | Nginx Version |
-|-----------------------|-------------           |----------------|---------------|
-| v1.0.4                | 1.22, 1.21, 1.20, 1.19 | 3.14.2         |  1.19.9†      |
-| v1.0.3                | 1.22, 1.21, 1.20, 1.19 | 3.14.2         |  1.19.9†      |
-| v1.0.2                | 1.22, 1.21, 1.20, 1.19 | 3.14.2         |  1.19.9†      |
-| v1.0.1                | 1.22, 1.21, 1.20, 1.19 | 3.14.2         |  1.19.9†      |
-| v1.0.0                | 1.22, 1.21, 1.20, 1.19 | 3.13.5         |  1.20.1       |
-| v0.49.3               | 1.21, 1.20, 1.19       | 3.14.2         |  1.19.9       |
-| v0.49.2               | 1.21, 1.20, 1.19       | 3.14.2         |  1.19.9       |
-| v0.49.1               | 1.21, 1.20, 1.19       | 3.14.2         |  1.19.9       |
-| v0.49.0               | 1.21, 1.20, 1.19       | 3.13.5         |  1.20.1       |
-| v0.48.1               | 1.21, 1.20, 1.19       | 3.13.5         |  1.20.1       |
-| v0.47.0               | 1.21, 1.20, 1.19       | 3.13.5         |  1.20.1       |
-| v0.46.0               | 1.21, 1.20, 1.19       | 3.13.2         |  1.19.6       |
+| Ingress-NGINX version | k8s supported version        | Alpine Version | Nginx Version |
+|-----------------------|------------------------------|----------------|---------------|
+| v1.3.0                | 1.24, 1.23, 1.22, 1.21, 1.20 | 3.16.0         | 1.19.10†      |
+| v1.2.1                | 1.23, 1.22, 1.21, 1.20, 1.19 | 3.14.6         | 1.19.10†      |
+| v1.1.3                | 1.23, 1.22, 1.21, 1.20, 1.19 | 3.14.4         | 1.19.10†      |
+| v1.1.2                | 1.23, 1.22, 1.21, 1.20, 1.19 | 3.14.2         | 1.19.9†       |
+| v1.1.1                | 1.23, 1.22, 1.21, 1.20, 1.19 | 3.14.2         | 1.19.9†       |
+| v1.1.0                | 1.22, 1.21, 1.20, 1.19       | 3.14.2         | 1.19.9†       |
+| v1.0.5                | 1.22, 1.21, 1.20, 1.19       | 3.14.2         | 1.19.9†       |
+| v1.0.4                | 1.22, 1.21, 1.20, 1.19       | 3.14.2         | 1.19.9†       |
+| v1.0.3                | 1.22, 1.21, 1.20, 1.19       | 3.14.2         | 1.19.9†       |
+| v1.0.2                | 1.22, 1.21, 1.20, 1.19       | 3.14.2         | 1.19.9†       |
+| v1.0.1                | 1.22, 1.21, 1.20, 1.19       | 3.14.2         | 1.19.9†       |
+| v1.0.0                | 1.22, 1.21, 1.20, 1.19       | 3.13.5         | 1.20.1        |
+| v0.51.0               | 1.21, 1.20, 1.19             | 3.14.4         | 1.19.10†       |
+| v0.49.3               | 1.21, 1.20, 1.19             | 3.14.2         | 1.19.9†       |
+| v0.49.2               | 1.21, 1.20, 1.19             | 3.14.2         | 1.19.9†       |
+| v0.49.1               | 1.21, 1.20, 1.19             | 3.14.2         | 1.19.9†       |
+| v0.49.0               | 1.21, 1.20, 1.19             | 3.13.5         | 1.20.1        |
+| v0.48.1               | 1.21, 1.20, 1.19             | 3.13.5         | 1.20.1        |
 
 † _This build is [patched against CVE-2021-23017](https://github.com/openresty/openresty/commit/4b5ec7edd78616f544abc194308e0cf4b788725b#diff-42ef841dc27fe0b5aa2d06bd31308bb63a59cdcddcbcddd917248349d22020a3)._
 
@@ -61,7 +68,7 @@ Thanks for taking the time to join our community and start contributing!
   
   - Submit github issues for any feature enhancements, bugs or documentation problems. Please make sure to read the [Issue Reporting Checklist](https://github.com/kubernetes/ingress-nginx/blob/main/CONTRIBUTING.md#issue-reporting-guidelines) before opening an issue. Issues not conforming to the guidelines **may be closed immediately**.
 
-- **Support**: Join the the [#ingress-nginx-users](https://kubernetes.slack.com/messages/CANQGM8BA/) channel inside the [Kubernetes Slack](http://slack.kubernetes.io/) to ask questions or get support from the maintainers and other users.
+- **Support**: Join the [#ingress-nginx-users](https://kubernetes.slack.com/messages/CANQGM8BA/) channel inside the [Kubernetes Slack](http://slack.kubernetes.io/) to ask questions or get support from the maintainers and other users.
   
   - The [github issues](https://github.com/kubernetes/ingress-nginx/issues) in the repository are **exclusively** for bug reports and feature requests.
 

@@ -28,7 +28,7 @@ Ensure that the relevant [ingress rules specify a matching host name](https://ku
 ## Default SSL Certificate
 
 NGINX provides the option to configure a server as a catch-all with
-[server_name](http://nginx.org/en/docs/http/server_names.html)
+[server_name](https://nginx.org/en/docs/http/server_names.html)
 for requests that do not match any of the configured server names.
 This configuration works out-of-the-box for HTTP traffic.
 For HTTPS, a certificate is naturally required.
@@ -43,6 +43,8 @@ add `--default-ssl-certificate=default/foo-tls` in the `nginx-controller` deploy
 
 The default certificate will also be used for ingress `tls:` sections that do not
 have a `secretName` option.
+
+To force redirects for Ingresses that do not specify a TLS-block at all, take a look at `force-ssl-redirect` in [ConfigMap][ConfigMap].
 
 ## SSL Passthrough
 
@@ -113,7 +115,7 @@ spec:
   tls:
     - hosts:
         - ingress-demo.example.com
-        secretName: ingress-demo-tls
+      secretName: ingress-demo-tls
     [...]
 ```
 
@@ -121,7 +123,7 @@ spec:
 
 To provide the most secure baseline configuration possible,
 
-nginx-ingress defaults to using TLS 1.2 and 1.3 only, with a [secure set of TLS ciphers][ssl-ciphers].
+ingress-nginx defaults to using TLS 1.2 and 1.3 only, with a [secure set of TLS ciphers][ssl-ciphers].
 
 ### Legacy TLS
 
@@ -129,7 +131,7 @@ The default configuration, though secure, does not support some older browsers a
 
 For instance, TLS 1.1+ is only enabled by default from Android 5.0 on. At the time of writing,
 May 2018, [approximately 15% of Android devices](https://developer.android.com/about/dashboards/#Platform)
-are not compatible with nginx-ingress's default configuration.
+are not compatible with ingress-nginx's default configuration.
 
 To change this default behavior, use a [ConfigMap][ConfigMap].
 
@@ -154,5 +156,5 @@ data:
 [SNI]: https://en.wikipedia.org/wiki/Server_Name_Indication
 [mozilla-ssl-config-old]: https://ssl-config.mozilla.org/#server=nginx&config=old
 [cert-manager]: https://github.com/jetstack/cert-manager/
-[full-cert-manager-example]:https://cert-manager.io/docs/tutorials/acme/ingress/
+[full-cert-manager-example]:https://cert-manager.io/docs/tutorials/acme/nginx-ingress/
 [cert-manager-issuer-config]:https://cert-manager.io/docs/configuration/

@@ -42,10 +42,12 @@ import (
 	clientcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/klog/v2"
+	"k8s.io/ingress-nginx/internal/ingress/inspector"
 
-	"k8s.io/ingress-nginx/internal/file"
-	"k8s.io/ingress-nginx/internal/ingress"
+	"k8s.io/ingress-nginx/internal/nginx"
+	"k8s.io/ingress-nginx/pkg/util/file"
+	klog "k8s.io/klog/v2"
+
 	"k8s.io/ingress-nginx/internal/ingress/annotations"
 	"k8s.io/ingress-nginx/internal/ingress/annotations/parser"
 	ngx_config "k8s.io/ingress-nginx/internal/ingress/controller/config"
@@ -55,7 +57,7 @@ import (
 	"k8s.io/ingress-nginx/internal/ingress/errors"
 	"k8s.io/ingress-nginx/internal/ingress/resolver"
 	"k8s.io/ingress-nginx/internal/k8s"
-	"k8s.io/ingress-nginx/internal/nginx"
+	"k8s.io/ingress-nginx/pkg/apis/ingress"
 )
 
 // IngressFilterFunc decides if an Ingress should be omitted or not
@@ -98,6 +100,9 @@ type Storer interface {
 
 	// Run initiates the synchronization of the controllers
 	Run(stopCh chan struct{})
+
+	// GetIngressClass validates given ingress against ingress class configuration and returns the ingress class.
+	GetIngressClass(ing *networkingv1.Ingress, icConfig *ingressclass.IngressClassConfiguration) (string, error)
 }
 
 // EventType type of event associated with an informer
@@ -244,6 +249,7 @@ func New(
 	client clientset.Interface,
 	updateCh *channels.RingChannel,
 	disableCatchAll bool,
+	deepInspector bool,
 	icConfig *ingressclass.IngressClassConfiguration) Storer {
 
 	store := &k8sStore{
@@ -423,6 +429,12 @@ func New(
 
 			klog.InfoS("Found valid IngressClass", "ingress", klog.KObj(ing), "ingressclass", ic)
 
+			if deepInspector {
+				if err := inspector.DeepInspect(ing); err != nil {
+					klog.ErrorS(err, "received invalid ingress", "ingress", klog.KObj(ing))
+					return
+				}
+			}
 			if hasCatchAllIngressRule(ing.Spec) && disableCatchAll {
 				klog.InfoS("Ignoring add for catch-all ingress because of --disable-catch-all", "ingress", klog.KObj(ing))
 				return
@@ -477,6 +489,13 @@ func New(
 			} else {
 				klog.V(3).InfoS("No changes on ingress. Skipping update", "ingress", klog.KObj(curIng))
 				return
+			}
+
+			if deepInspector {
+				if err := inspector.DeepInspect(curIng); err != nil {
+					klog.ErrorS(err, "received invalid ingress", "ingress", klog.KObj(curIng))
+					return
+				}
 			}
 
 			store.syncIngress(curIng)
@@ -823,10 +842,11 @@ func (s *k8sStore) syncIngress(ing *networkingv1.Ingress) {
 	copyIng := &networkingv1.Ingress{}
 	ing.ObjectMeta.DeepCopyInto(&copyIng.ObjectMeta)
 
-	klog.Errorf("Blocklist: %v", s.backendConfig.AnnotationValueWordBlocklist)
-	if err := checkBadAnnotationValue(copyIng.Annotations, s.backendConfig.AnnotationValueWordBlocklist); err != nil {
-		klog.Errorf("skipping ingress %s: %s", key, err)
-		return
+	if s.backendConfig.AnnotationValueWordBlocklist != "" {
+		if err := checkBadAnnotationValue(copyIng.Annotations, s.backendConfig.AnnotationValueWordBlocklist); err != nil {
+			klog.Warningf("skipping ingress %s: %s", key, err)
+			return
+		}
 	}
 
 	ing.Spec.DeepCopyInto(&copyIng.Spec)

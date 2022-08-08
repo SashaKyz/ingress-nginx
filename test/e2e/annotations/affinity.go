@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +36,7 @@ var _ = framework.DescribeAnnotation("affinity session-cookie-name", func() {
 	f := framework.NewDefaultFramework("affinity")
 
 	ginkgo.BeforeEach(func() {
-		f.NewEchoDeploymentWithReplicas(2)
+		f.NewEchoDeployment(framework.WithDeploymentReplicas(2))
 	})
 
 	ginkgo.It("should set sticky cookie SERVERID", func() {

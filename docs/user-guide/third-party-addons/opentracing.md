@@ -140,7 +140,7 @@ kubectl create -f https://raw.githubusercontent.com/rnburn/zipkin-date-server/ma
 kubectl create -f https://raw.githubusercontent.com/rnburn/zipkin-date-server/master/kubernetes/deployment.yaml
 ```
 
-Also we need to configure the NGINX controller ConfigMap with the required values:
+Also we need to configure the Ingress-NGINX controller ConfigMap with the required values:
 
 ```
 $ echo '
@@ -173,7 +173,7 @@ In the Zipkin interface we can see the details:
 3. Apply a basic Service and Ingress Resource:
     ```
     # Create Echoheaders Deployment
-    $ kubectl run echoheaders --image=k8s.gcr.io/echoserver:1.4 --replicas=1 --port=8080
+    $ kubectl run echoheaders --image=registry.k8s.io/echoserver:1.4 --replicas=1 --port=8080
 
     # Expose as a Cluster-IP
     $ kubectl expose deployment echoheaders --port=80 --target-port=8080 --name=echoheaders-x

@@ -44,11 +44,9 @@ import (
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/flowcontrol"
-	"k8s.io/klog/v2"
+	"k8s.io/ingress-nginx/pkg/tcpproxy"
 
 	adm_controller "k8s.io/ingress-nginx/internal/admission/controller"
-	"k8s.io/ingress-nginx/internal/file"
-	"k8s.io/ingress-nginx/internal/ingress"
 	ngx_config "k8s.io/ingress-nginx/internal/ingress/controller/config"
 	"k8s.io/ingress-nginx/internal/ingress/controller/process"
 	"k8s.io/ingress-nginx/internal/ingress/controller/store"
@@ -60,7 +58,10 @@ import (
 	"k8s.io/ingress-nginx/internal/net/ssl"
 	"k8s.io/ingress-nginx/internal/nginx"
 	"k8s.io/ingress-nginx/internal/task"
-	"k8s.io/ingress-nginx/internal/watch"
+	"k8s.io/ingress-nginx/pkg/apis/ingress"
+
+	"k8s.io/ingress-nginx/pkg/util/file"
+	klog "k8s.io/klog/v2"
 )
 
 const (
@@ -101,7 +102,7 @@ func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXContro
 
 		runningConfig: new(ingress.Configuration),
 
-		Proxy: &TCPProxy{},
+		Proxy: &tcpproxy.TCPProxy{},
 
 		metricCollector: mc,
 
@@ -110,9 +111,11 @@ func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXContro
 
 	if n.cfg.ValidationWebhook != "" {
 		n.validationWebhookServer = &http.Server{
-			Addr:      config.ValidationWebhook,
-			Handler:   adm_controller.NewAdmissionControllerServer(&adm_controller.IngressAdmission{Checker: n}),
-			TLSConfig: ssl.NewTLSListener(n.cfg.ValidationWebhookCertPath, n.cfg.ValidationWebhookKeyPath).TLSConfig(),
+			Addr: config.ValidationWebhook,
+			//G112 (CWE-400): Potential Slowloris Attack
+			ReadHeaderTimeout: 10 * time.Second,
+			Handler:           adm_controller.NewAdmissionControllerServer(&adm_controller.IngressAdmission{Checker: n}),
+			TLSConfig:         ssl.NewTLSListener(n.cfg.ValidationWebhookCertPath, n.cfg.ValidationWebhookKeyPath).TLSConfig(),
 			// disable http/2
 			// https://github.com/kubernetes/kubernetes/issues/80313
 			// https://github.com/kubernetes/ingress-nginx/issues/6323#issuecomment-737239159
@@ -131,6 +134,7 @@ func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXContro
 		config.Client,
 		n.updateCh,
 		config.DisableCatchAll,
+		config.DeepInspector,
 		config.IngressClassConfiguration)
 
 	n.syncQueue = task.NewTaskQueue(n.syncIngress)
@@ -168,7 +172,7 @@ func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXContro
 
 	n.t = ngxTpl
 
-	_, err = watch.NewFileWatcher(nginx.TemplatePath, onTemplateChange)
+	_, err = file.NewFileWatcher(nginx.TemplatePath, onTemplateChange)
 	if err != nil {
 		klog.Fatalf("Error creating file watcher for %v: %v", nginx.TemplatePath, err)
 	}
@@ -192,7 +196,7 @@ func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXContro
 	}
 
 	for _, f := range filesToWatch {
-		_, err = watch.NewFileWatcher(f, func() {
+		_, err = file.NewFileWatcher(f, func() {
 			klog.InfoS("File changed detected. Reloading NGINX", "path", f)
 			n.syncQueue.EnqueueTask(task.GetDummyObject("file-change"))
 		})
@@ -238,7 +242,7 @@ type NGINXController struct {
 
 	isShuttingDown bool
 
-	Proxy *TCPProxy
+	Proxy *tcpproxy.TCPProxy
 
 	store store.Storer
 
@@ -275,6 +279,7 @@ func (n *NGINXController) Start() {
 			// manually update SSL expiration metrics
 			// (to not wait for a reload)
 			n.metricCollector.SetSSLExpireTime(n.runningConfig.Servers)
+			n.metricCollector.SetSSLInfo(n.runningConfig.Servers)
 		},
 		OnStoppedLeading: func() {
 			n.metricCollector.OnStoppedLeading(electionID)
@@ -435,7 +440,7 @@ func (n NGINXController) DefaultEndpoint() ingress.Endpoint {
 func (n NGINXController) generateTemplate(cfg ngx_config.Configuration, ingressCfg ingress.Configuration) ([]byte, error) {
 
 	if n.cfg.EnableSSLPassthrough {
-		servers := []*TCPServer{}
+		servers := []*tcpproxy.TCPServer{}
 		for _, pb := range ingressCfg.PassthroughBackends {
 			svc := pb.Service
 			if svc == nil {
@@ -460,7 +465,7 @@ func (n NGINXController) generateTemplate(cfg ngx_config.Configuration, ingressC
 			}
 
 			// TODO: Allow PassthroughBackends to specify they support proxy-protocol
-			servers = append(servers, &TCPServer{
+			servers = append(servers, &tcpproxy.TCPServer{
 				Hostname:      pb.Hostname,
 				IP:            svc.Spec.ClusterIP,
 				Port:          port,
@@ -574,6 +579,15 @@ func (n NGINXController) generateTemplate(cfg ngx_config.Configuration, ingressC
 
 	cfg.DefaultSSLCertificate = n.getDefaultSSLCertificate()
 
+	if n.cfg.IsChroot {
+		if cfg.AccessLogPath == "/var/log/nginx/access.log" {
+			cfg.AccessLogPath = fmt.Sprintf("syslog:server=%s", n.cfg.InternalLoggerAddress)
+		}
+		if cfg.ErrorLogPath == "/var/log/nginx/error.log" {
+			cfg.ErrorLogPath = fmt.Sprintf("syslog:server=%s", n.cfg.InternalLoggerAddress)
+		}
+	}
+
 	tc := ngx_config.TemplateConfig{
 		ProxySetHeaders:          setHeaders,
 		AddHeaders:               addHeaders,
@@ -599,6 +613,7 @@ func (n NGINXController) generateTemplate(cfg ngx_config.Configuration, ingressC
 		StatusPath:               nginx.StatusPath,
 		StatusPort:               nginx.StatusPort,
 		StreamPort:               nginx.StreamPort,
+		StreamSnippets:           append(ingressCfg.StreamSnippets, cfg.StreamSnippet),
 	}
 
 	tc.Cfg.Checksum = ingressCfg.ConfigurationChecksum
@@ -612,7 +627,8 @@ func (n NGINXController) testTemplate(cfg []byte) error {
 	if len(cfg) == 0 {
 		return fmt.Errorf("invalid NGINX configuration (empty)")
 	}
-	tmpfile, err := os.CreateTemp("", tempNginxPattern)
+	tmpDir := os.TempDir() + "/nginx"
+	tmpfile, err := os.CreateTemp(tmpDir, tempNginxPattern)
 	if err != nil {
 		return err
 	}
@@ -736,8 +752,8 @@ func (n *NGINXController) setupSSLProxy() {
 	proxyPort := n.cfg.ListenPorts.SSLProxy
 
 	klog.InfoS("Starting TLS proxy for SSL Passthrough")
-	n.Proxy = &TCPProxy{
-		Default: &TCPServer{
+	n.Proxy = &tcpproxy.TCPProxy{
+		Default: &tcpproxy.TCPServer{
 			Hostname:      "localhost",
 			IP:            "127.0.0.1",
 			Port:          proxyPort,

@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 
 	pool "gopkg.in/go-playground/pool.v3"
@@ -35,9 +34,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
 
-	"k8s.io/ingress-nginx/internal/ingress"
 	"k8s.io/ingress-nginx/internal/k8s"
 	"k8s.io/ingress-nginx/internal/task"
+	"k8s.io/ingress-nginx/pkg/apis/ingress"
 )
 
 // UpdateInterval defines the time interval, in seconds, in
@@ -294,7 +293,7 @@ func runUpdate(ing *ingress.Ingress, status []apiv1.LoadBalancerIngress,
 		ingClient := client.NetworkingV1().Ingresses(ing.Namespace)
 		currIng, err := ingClient.Get(context.TODO(), ing.Name, metav1.GetOptions{})
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("unexpected error searching Ingress %v/%v", ing.Namespace, ing.Name))
+			return nil, fmt.Errorf("unexpected error searching Ingress %s/%s: %w", ing.Namespace, ing.Name, err)
 		}
 
 		klog.InfoS("updating Ingress status", "namespace", currIng.Namespace, "ingress", currIng.Name, "currentValue", currIng.Status.LoadBalancer.Ingress, "newValue", status)

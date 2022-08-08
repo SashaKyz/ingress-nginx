@@ -18,7 +18,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-export NGINX_VERSION=1.19.9
+export NGINX_VERSION=1.19.10
 
 # Check for recent changes: https://github.com/vision5/ngx_devel_kit/compare/v0.3.1...master
 export NDK_VERSION=0.3.1
@@ -34,12 +34,6 @@ export NGINX_DIGEST_AUTH=1.0.0
 
 # Check for recent changes: https://github.com/yaoweibin/ngx_http_substitutions_filter_module/compare/v0.6.4...master
 export NGINX_SUBSTITUTIONS=b8a71eacc7f986ba091282ab8b1bbbc6ae1807e0
-
-# Check for recent changes: https://github.com/open-telemetry/opentelemetry-cpp/compare/v1.0.0...main
-export OPENTELEMETRY_CPP_VERSION=1.0.0
-
-# Check for recent changes: https://github.com/open-telemetry/opentelemetry-cpp-contrib/compare/c655b8...main
-export OPENTELEMETRY_CONTRIB_COMMIT=c655b849f017a5363085a4b4e6fcae8a4b7621ad
 
 # Check for recent changes: https://github.com/opentracing-contrib/nginx-opentracing/compare/v0.19.0...master
 export NGINX_OPENTRACING_VERSION=0.19.0
@@ -59,8 +53,8 @@ export JAEGER_VERSION=0.7.0
 # Check for recent changes: https://github.com/msgpack/msgpack-c/compare/cpp-3.3.0...master
 export MSGPACK_VERSION=3.3.0
 
-# Check for recent changes: https://github.com/DataDog/dd-opentracing-cpp/compare/v1.3.0...master
-export DATADOG_CPP_VERSION=af53c523787cca108ae9f458ea5c962e48187a36
+# Check for recent changes: https://github.com/DataDog/dd-opentracing-cpp/compare/v1.3.2...master
+export DATADOG_CPP_VERSION=1.3.2
 
 # Check for recent changes: https://github.com/SpiderLabs/ModSecurity-nginx/compare/v1.0.2...master
 export MODSECURITY_VERSION=1.0.2
@@ -133,6 +127,9 @@ export LUA_RESTY_IPMATCHER_VERSION=211e0d2eb8bbb558b79368f89948a0bafdc23654
 # Check for recent changes: https://github.com/ElvinEfendi/lua-resty-global-throttle/compare/v0.2.0...main
 export LUA_RESTY_GLOBAL_THROTTLE_VERSION=0.2.0
 
+# Check for recent changes:  https://github.com/microsoft/mimalloc/compare/v1.7.6...master
+export MIMALOC_VERSION=1.7.6
+
 export BUILD_PATH=/tmp/build
 
 ARCH=$(uname -m)
@@ -142,11 +139,6 @@ if [[ ${ARCH} == "s390x" ]]; then
   export LUA_RESTY_CORE=0.1.17
   export LUA_NGX_VERSION=0.10.15
   export LUA_STREAM_NGX_VERSION=0.0.7
-fi
-
-export USE_OPENTELEMETRY=true
-if [[ ${ARCH} == "s390x" ]] || [[ ${ARCH} == "armv7l" ]]; then
-  export USE_OPENTELEMETRY=false
 fi
 
 get_src()
@@ -208,7 +200,7 @@ mkdir --verbose -p "$BUILD_PATH"
 cd "$BUILD_PATH"
 
 # download, verify and extract the source files
-get_src 2e35dff06a9826e8aca940e9e8be46b7e4b12c19a48d55bfc2dc28fc9cc7d841 \
+get_src e8d0290ff561986ad7cd6c33307e12e11b137186c4403a6a5ccdb4914c082d88 \
         "https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz"
 
 get_src 0e971105e210d272a497567fa2e2c256f4e39b845a5ba80d373e26ba1abfbd85 \
@@ -225,9 +217,6 @@ get_src f09851e6309560a8ff3e901548405066c83f1f6ff88aa7171e0763bd9514762b \
 
 get_src a98b48947359166326d58700ccdc27256d2648218072da138ab6b47de47fbd8f \
         "https://github.com/yaoweibin/ngx_http_substitutions_filter_module/archive/$NGINX_SUBSTITUTIONS.tar.gz"
-
-get_src 37b2a2abf75e865449ff1425cee96dbd74659ac0c612c84ee5f381244360cab2 \
-        "https://github.com/open-telemetry/opentelemetry-cpp-contrib/archive/$OPENTELEMETRY_CONTRIB_COMMIT.tar.gz"
 
 get_src 6f97776ebdf019b105a755c7736b70bdbd7e575c7f0d39db5fe127873c7abf17 \
         "https://github.com/opentracing-contrib/nginx-opentracing/archive/v$NGINX_OPENTRACING_VERSION.tar.gz"
@@ -275,8 +264,8 @@ get_src 1ee6dad809a5bb22efb45e6dac767f7ce544ad652d353a93d7f26b605f69fe3f \
         "https://github.com/openresty/luajit2/archive/v$LUAJIT_VERSION.tar.gz"
 fi
 
-get_src f29393f2cd9288105a0029a6a324fe1f7558a9e7e852d59a6355f7581bb90e30 \
-        "https://github.com/DataDog/dd-opentracing-cpp/archive/$DATADOG_CPP_VERSION.tar.gz"
+get_src 586f92166018cc27080d34e17c59d68219b85af745edf3cc9fe41403fc9b4ac6 \
+        "https://github.com/DataDog/dd-opentracing-cpp/archive/v$DATADOG_CPP_VERSION.tar.gz"
 
 get_src 1af5a5632dc8b00ae103d51b7bf225de3a7f0df82f5c6a401996c080106e600e \
         "https://github.com/influxdata/nginx-influxdb-module/archive/$NGINX_INFLUXDB_VERSION.tar.gz"
@@ -333,6 +322,9 @@ get_src b8dbd502751140993a852381bcd8e98a402454596bd91838c1e51268d42db261 \
 
 get_src 0fb790e394510e73fdba1492e576aaec0b8ee9ef08e3e821ce253a07719cf7ea \
         "https://github.com/ElvinEfendi/lua-resty-global-throttle/archive/v$LUA_RESTY_GLOBAL_THROTTLE_VERSION.tar.gz"
+
+get_src d74f86ada2329016068bc5a243268f1f555edd620b6a7d6ce89295e7d6cf18da \
+        "https://github.com/microsoft/mimalloc/archive/refs/tags/v${MIMALOC_VERSION}.tar.gz"
 
 # improve compilation times
 CORES=$(($(grep -c ^processor /proc/cpuinfo) - 1))
@@ -482,32 +474,6 @@ cmake -DCMAKE_BUILD_TYPE=Release \
 make
 make install
 
-if [ $USE_OPENTELEMETRY = true ]; then
-  # build opentelemetry lib
-  apk add protobuf-dev \
-    grpc \
-    grpc-dev \
-    gtest-dev \
-    c-ares-dev
-
-  cd $BUILD_PATH
-  git clone --recursive https://github.com/open-telemetry/opentelemetry-cpp opentelemetry-cpp-$OPENTELEMETRY_CPP_VERSION
-  cd "opentelemetry-cpp-$OPENTELEMETRY_CPP_VERSION"
-  git checkout v$OPENTELEMETRY_CPP_VERSION
-  mkdir .build
-  cd .build
-
-  cmake -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_TESTING=OFF \
-        -DWITH_EXAMPLES=OFF \
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-        -DWITH_OTLP=ON \
-        -DWITH_OTLP_HTTP=OFF \
-        ..
-  make
-  make install
-fi
-
 # Get Brotli source and deps
 cd "$BUILD_PATH"
 git clone --depth=1 https://github.com/google/ngx_brotli.git
@@ -637,7 +603,7 @@ WITH_FLAGS="--with-debug \
 
 # "Combining -flto with -g is currently experimental and expected to produce unexpected results."
 # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html
-CC_OPT="-g -Og -fPIE -fstack-protector-strong \
+CC_OPT="-g -O2 -fPIE -fstack-protector-strong \
   -Wformat \
   -Werror=format-security \
   -Wno-deprecated-declarations \
@@ -656,7 +622,7 @@ if [[ ${ARCH} != "aarch64" ]]; then
 fi
 
 if [[ ${ARCH} == "x86_64" ]]; then
-  CC_OPT+=' -m64 -mtune=native'
+  CC_OPT+=' -m64 -mtune=generic'
 fi
 
 WITH_MODULES=" \
@@ -674,11 +640,6 @@ WITH_MODULES=" \
   --add-dynamic-module=$BUILD_PATH/ModSecurity-nginx-$MODSECURITY_VERSION \
   --add-dynamic-module=$BUILD_PATH/ngx_http_geoip2_module-${GEOIP2_VERSION} \
   --add-dynamic-module=$BUILD_PATH/ngx_brotli"
-
-if [ $USE_OPENTELEMETRY = true ]; then
-  WITH_MODULES+=" \
-    --add-dynamic-module=$BUILD_PATH/opentelemetry-cpp-contrib-$OPENTELEMETRY_CONTRIB_COMMIT/instrumentation/nginx"
-fi
 
 ./configure \
   --prefix=/usr/local/nginx \
@@ -758,11 +719,7 @@ INST_LUADIR=/usr/local/lib/lua make install
 cd "$BUILD_PATH/lua-resty-global-throttle-$LUA_RESTY_GLOBAL_THROTTLE_VERSION"
 make install
 
-# mimalloc
-cd "$BUILD_PATH"
-git clone --depth=1 -b v1.6.7 https://github.com/microsoft/mimalloc
-cd mimalloc
-
+cd "$BUILD_PATH/mimalloc-$MIMALOC_VERSION"
 mkdir -p out/release
 cd out/release
 
