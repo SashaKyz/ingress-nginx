@@ -1,7 +1,7 @@
 {
   "application" : "CWDS ERROR JSON",
   "health_status" : false,
-  "error_code": %[X-Code],
+  "error_code": "5xx",
   "messages": "Some 5XX error happens. Try again",
   "health_checks" : {
     "dependency" : {
